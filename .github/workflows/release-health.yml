@@ -15,6 +15,8 @@ on:
       - "build.gradle.kts"
       - "settings.gradle.kts"
       - "gradle.properties"
+      - "gradlew"
+      - "gradlew.bat"
       - "config/**"
       - "scripts/**"
       - ".github/workflows/release-health.yml"
