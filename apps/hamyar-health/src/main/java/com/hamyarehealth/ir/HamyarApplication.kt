@@ -1,0 +1,96 @@
+package com.hamyarehealth.ir
+
+import android.app.Application
+import coil.ImageLoader
+import coil.ImageLoaderFactory
+import com.hamyarehealth.ir.ui.components.BucketRevalidateInterceptor
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.Modifier
+import com.hamyarehealth.ir.platform.core.designsystem.LockBackdrop
+import com.hamyarehealth.ir.platform.core.designsystem.LockVariant
+import com.hamyarehealth.ir.platform.core.notifications.NotificationChannels
+import com.hamyarehealth.ir.platform.core.notifications.Reminder
+import com.hamyarehealth.ir.di.AppContainer
+import com.hamyarehealth.ir.ui.components.DesignAsset
+import com.hamyarehealth.ir.ui.components.RemoteDesignImage
+import com.hamyarehealth.ir.ui.study.SchoolAlarmStore
+
+class HamyarApplication : Application(), ImageLoaderFactory {
+
+    lateinit var container: AppContainer
+        private set
+
+    /**
+     * Coil با یک interceptor که تصاویر باکت را در هر لود با درخواست شرطی (ETag / Last-Modified)
+     * اعتبارسنجی می‌کند: ۳۰۴ = همان تصویر کش‌شده، ۲۰۰ = تصویر تازه در همان آدرس.
+     */
+    override fun newImageLoader(): ImageLoader =
+        ImageLoader.Builder(this)
+            .components { add(BucketRevalidateInterceptor) }
+            .build()
+
+    override fun onCreate() {
+        super.onCreate()
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, error ->
+            val name = thread.name.orEmpty()
+            if (name.contains("OkHttp", ignoreCase = true) || name.contains("DefaultDispatcher")) {
+                return@setDefaultUncaughtExceptionHandler
+            }
+            previous?.uncaughtException(thread, error)
+        }
+        container = AppContainer(this)
+        // پس‌زمینهٔ تصویریِ دو قفل مستقل (اپ / فضای امن) از باکت؛ زیر آن صحنهٔ رسم‌شده با کد است.
+        LockBackdrop.provider = { variant ->
+            RemoteDesignImage(
+                key = if (variant == LockVariant.SafeSpace) DesignAsset.LOCK_SAFE else DesignAsset.LOCK_APP,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+        // اگر process نسخهٔ قبلی پیش از callback نصب بسته شد، نسخهٔ تازه در همین
+        // شروع فایل APK/part را بعد از تطبیق versionCode حذف می‌کند.
+        runCatching { com.hamyarehealth.ir.ui.update.ApkUpdate.cleanupAfterSuccessfulInstall(this) }
+        // نشانی دوگانهٔ محتوا: تنظیمات سرور + کاتالوگ assets (پیش‌بارگذاری در آغاز اجرا)
+        runCatching { com.hamyarehealth.ir.ui.study.ServerPrefs.init(this) }
+        runCatching { com.hamyarehealth.ir.ui.content.ContentCatalog.load(this) }
+        // کش قدیمی درس‌ها با کلید و مسیر دیگری ساخته شده بود؛ بعد از تغییر آدرس‌ها
+        // به Bucket/... دیگر هیچ‌وقت hit نمی‌شود و فقط جا می‌گیرد.
+        runCatching { java.io.File(filesDir, "html-cipher-cache").deleteRecursively() }
+        runCatching { com.hamyarehealth.ir.ui.study.ServerResolver.probeAsync() }
+        // پخشِ فایل‌های گاوصندوق: طرحِ vault:// به جریانِ رمزگشاییِ تنبل وصل می‌شود
+        // (خوانشِ جسته‌گریخته؛ بدونِ بلوکه‌شدنِ لودرِ پلیر برای رمزگشاییِ کل فایل).
+        com.hamyarehealth.ir.platform.feature.playback.VaultSourceHooks.open = { key ->
+            runCatching { com.hamyarehealth.ir.ui.study.MediaVault.openPlainStream(this, key) }.getOrNull()
+        }
+        runCatching { NotificationChannels.ensure(this) }
+        // بازهٔ سکوت بعد از بسته‌شدن برنامه و reboot مستقل از UI اجرا می‌شود.
+        runCatching { com.hamyarehealth.ir.platform.core.notifications.QuietHoursAutomation.schedule(this) }
+        runCatching { com.hamyarehealth.ir.ui.profile.StudentProfileState.loadMirror(this) }
+        runCatching {
+            val snap = com.hamyarehealth.ir.ui.study.ClassPlanStore.load(this)
+            com.hamyarehealth.ir.ui.study.ClassPlanStore.refreshOffCache(this)
+            com.hamyarehealth.ir.ui.study.ClassPlanStore.syncAlarms(
+                this, container.reminders, snap, java.time.LocalDate.now(com.hamyarehealth.ir.platform.core.common.JalaliDate.TEHRAN))
+        }
+        runCatching { seedDefaultReminders() }
+    }
+
+    /**
+     * سه یادآور پیش‌فرض ملایم. فقط یک‌بار (اولین اجرا) ساخته می‌شوند و کاربر
+     * می‌تواند خاموششان کند؛ یادآور اجباری، ابزار مراقبتی نیست بلکه آزار است.
+     */
+    private fun seedDefaultReminders() {
+        val scheduler = container.reminders
+        val existing = scheduler.all()
+        if (existing.isEmpty()) {
+            listOf(
+                Reminder("water-morning", "یک لیوان آب", "صبح‌ها با یک لیوان آب شروع کن 🙂", 9, 30),
+                Reminder("study-review", "مرور درس امروز", "ده دقیقه مرور، فردا خیلی راحت‌تر می‌شود.", 18, 0),
+                Reminder("calm-evening", "آرام‌سازی شبانه", "چند نفس عمیق و یک کشش کوتاه پیش از خواب.", 21, 30)).forEach { scheduler.upsert(it) }
+        }
+        // مهاجرت: یادآورهای درسیِ اپِ قبلی در «همیار سلامتی من» معنا ندارند.
+        // remove علاوه بر پاک‌کردن state، PendingIntent نسخهٔ قبلی را هم لغو می‌کند.
+        scheduler.remove(SchoolAlarmStore.SCHOOL_M)
+        scheduler.remove(SchoolAlarmStore.SCHOOL_N)
+    }
+}

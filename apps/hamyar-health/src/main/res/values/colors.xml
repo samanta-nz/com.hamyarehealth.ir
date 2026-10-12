@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- پالت امضای «همیار سلامتی من» — هم‌خانواده با نشانِ قلب/نبضِ اپ. -->
+<resources>
+    <color name="window_background">#FFF6FBF8</color>
+    <color name="ic_launcher_background">#FFCFF3E6</color>
+    <color name="health_mint">#FF3FBFA6</color>
+    <color name="health_mint_deep">#FF1F8F7C</color>
+    <color name="health_coral">#FFFF7A7A</color>
+</resources>

@@ -1,0 +1,637 @@
+package com.hamyarehealth.ir.ui.settings
+
+import android.content.Intent
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Card
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavController
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.hamyarehealth.ir.platform.core.common.JalaliDate
+import com.hamyarehealth.ir.platform.core.common.LocalStore
+import com.hamyarehealth.ir.platform.core.common.PrivacyPolicy
+import com.hamyarehealth.ir.platform.core.common.toPersianDigits
+import com.hamyarehealth.ir.platform.core.designsystem.AppTopBar
+import java.util.UUID
+import com.hamyarehealth.ir.platform.core.designsystem.InlineButton
+import com.hamyarehealth.ir.platform.core.designsystem.PrimaryButton
+import com.hamyarehealth.ir.platform.core.designsystem.PatternLockGrid
+import com.hamyarehealth.ir.platform.core.designsystem.SectionCard
+import androidx.compose.ui.platform.LocalContext
+import androidx.fragment.app.FragmentActivity
+import com.hamyarehealth.ir.platform.core.notifications.Reminder
+import com.hamyarehealth.ir.platform.core.notifications.QuietHoursAutomation
+import com.hamyarehealth.ir.platform.core.security.BiometricPromptRunner
+import com.hamyarehealth.ir.platform.core.security.BiometricStatus
+import com.hamyarehealth.ir.LocalAppContainer
+import com.hamyarehealth.ir.ui.navigation.Screen
+import com.hamyarehealth.ir.ui.hub.MedsStore
+import android.provider.Settings
+import kotlinx.coroutines.launch
+import com.hamyarehealth.ir.platform.core.appwrite.AppwriteAuthService
+import com.hamyarehealth.ir.platform.core.appwrite.AppwriteClientProvider
+import com.hamyarehealth.ir.platform.core.common.AppResult
+import com.hamyarehealth.ir.platform.core.common.TableIds
+import androidx.compose.material3.Slider
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import com.hamyarehealth.ir.ui.sync.SyncCenter
+import java.util.Locale
+
+@Composable
+fun SettingsScreen(nav: NavController) {
+    val container = LocalAppContainer.current
+    // فقط فهرست تنظیمات دو واحد جمع‌تر است؛ خانوادهٔ انتخابی کاربر حفظ می‌شود.
+    val compactTypography = settingsTypography(MaterialTheme.typography, sizeDelta = -2f)
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme,
+        typography = compactTypography,
+    ) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+        ) {
+            AppTopBar("تنظیمات", onBack = { nav.popBackStack() }, onHelp = { nav.navigate(Screen.UserGuide.of("settings")) })
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SectionCard(
+                    "تم برنامه",
+                    "رنگ، حالت روشن یا تاریک و اندازهٔ نوشته.",
+                ) { nav.navigate(Screen.Appearance.route) }
+                SectionCard(
+                    "راهنمای کاربری برنامه",
+                    "راهنمای کامل استفاده از بخش‌های برنامه، مدرسه، دفترها، رسانه‌ها و تنظیمات.",
+                ) { nav.navigate(Screen.UserGuide.of()) }
+                SectionCard(
+                    "قفل برنامه",
+                    if (container.lock.isEnabled()) "فعال — ورود با PIN یا بیومتریک." else "غیرفعال — برای محافظت فعالش کن.",
+                ) { nav.navigate(Screen.Lock.route) }
+                SectionCard(
+                    "یادآورها و ساعات سکوت",
+                    "مدیریت یادآورها و یک بازهٔ سکوت روزانه.",
+                ) { nav.navigate(Screen.Reminders.route) }
+                SectionCard(
+                    "تنظیمات سرور",
+                    "منبع محتوا، همگام‌سازی و کش دستگاه.",
+                ) { nav.navigate(Screen.Sync.route) }
+            }
+        }
+    }
+}
+
+@Composable
+fun PrivacySettingsScreen(onBack: () -> Unit) {
+    val container = LocalAppContainer.current
+    val store = container.store
+    var notice by remember { mutableStateOf<String?>(null) }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        AppTopBar("حریم خصوصی", onBack)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                "چرخه، ژورنال و چت خام هرگز به سرور نمی‌روند. بقیه‌ی پیشرفت درسی با حساب خودت همگام می‌شود.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("هرگز به سرور نمی‌رود", style = MaterialTheme.typography.titleSmall)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        PrivacyPolicy.neverSyncTables.joinToString("، "),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        "این جدول‌ها فقط روی همین دستگاه می‌مانند؛ SyncEngine آن‌ها را حتی وارد صف هم نمی‌کند.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("پاک‌کردن داده", style = MaterialTheme.typography.titleMedium)
+            PrimaryButton("پاک‌کردن کش گفت‌وگو از این دستگاه") {
+                container.heart.clearLocal()
+                notice = "کش گفت‌وگو از این دستگاه پاک شد."
+            }
+            PrimaryButton("پاک‌کردن همه‌ی داده‌های محلی (شامل PIN)") {
+                container.heart.clearLocal()
+                container.sync.clear()
+                container.lock.clearPin()
+                store.clearAll()
+                notice = "همه‌ی داده‌های محلی پاک شد. اپ را دوباره باز کن."
+            }
+            notice?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+fun AppLockScreen(onBack: () -> Unit) {
+    val container = LocalAppContainer.current
+    val lock = container.lock
+    val bio = container.biometric
+    val context = LocalContext.current
+    val activity = context as? FragmentActivity
+    val bioStatus = remember { bio.status(context) }
+    var bioState by remember { mutableStateOf(bio.isEnabled()) }
+    var currentPin by remember { mutableStateOf("") }
+    var pin by remember { mutableStateOf("") }
+    var confirm by remember { mutableStateOf("") }
+    var message by remember { mutableStateOf<String?>(null) }
+    var timeoutMs by remember { mutableStateOf(lock.autoLockTimeoutMs()) }
+    var hasPin by remember { mutableStateOf(lock.hasPin()) }
+    var pattern by remember { mutableStateOf("") }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        AppTopBar("قفل برنامه", onBack)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                "PIN با PBKDF2 و ۱۲۰٬۰۰۰ تکرار هش می‌شود و هرگز به‌شکل خام ذخیره نمی‌شود. " +
+                    "بیومتریک (اثر انگشت/چهره) فقط راه جایگزینِ بازکردنِ همین قفل است و " +
+                    "جای PIN را نمی‌گیرد.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            if (hasPin) {
+                OutlinedTextField(
+                    value = currentPin,
+                    onValueChange = { currentPin = it.filter(Char::isDigit).take(8) },
+                    label = { Text("PIN فعلی") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            OutlinedTextField(
+                value = pin,
+                onValueChange = { pin = it.filter(Char::isDigit).take(8) },
+                label = { Text(if (hasPin) "PIN جدید" else "PIN") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = confirm,
+                onValueChange = { confirm = it.filter(Char::isDigit).take(8) },
+                label = { Text("تکرار PIN") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            PrimaryButton(if (hasPin) "تغییر PIN" else "فعال‌کردن قفل") {
+                val invalid = lock.validatePin(pin)
+                when {
+                    hasPin && !lock.verify(currentPin) -> message = "PIN فعلی درست نیست."
+                    invalid != null -> message = invalid
+                    pin != confirm -> message = "تکرار PIN با PIN جدید یکسان نیست."
+                    else -> {
+                        val changingExistingPin = hasPin
+                        // نتیجهٔ ذخیره بررسی می‌شود تا شکست persistence هرگز UI را به crash نکشاند.
+                        val stored = runCatching { lock.setPin(pin) }.getOrDefault(false)
+                        if (!stored) {
+                            message = "ذخیرهٔ PIN انجام نشد؛ دوباره تلاش کن."
+                        } else {
+                            hasPin = true
+                            currentPin = ""
+                            pin = ""
+                            confirm = ""
+                            message = if (changingExistingPin) "PIN با موفقیت تغییر کرد." else "قفل برنامه فعال شد."
+                        }
+                        if (stored && !changingExistingPin && bioStatus == BiometricStatus.READY && activity != null) {
+                            // همان لحظهٔ ساخت PIN، یک بار اجازهٔ سیستم را می‌گیریم؛
+                            // فعال‌سازی خاموش/روشنِ بی‌تأیید مجاز نیست.
+                            BiometricPromptRunner.show(
+                                activity = activity,
+                                title = "فعال‌کردن ورود بیومتریک",
+                                subtitle = "برای ورود سریع‌تر به همیار سلامتی من هویتت را تأیید کن.",
+                                negativeText = "فعلاً نه",
+                                onSuccess = {
+                                    bioState = bio.setEnabled(true, context)
+                                    message = if (bioState) "قفل و ورود بیومتریک فعال شدند." else "قفل فعال شد؛ بیومتریک آماده نبود."
+                                },
+                                onError = { message = "قفل فعال شد؛ $it" },
+                                onCancelled = { message = "قفل فعال شد؛ بیومتریک را هر وقت خواستی از همین‌جا روشن کن." },
+                            )
+                        }
+                    }
+                }
+            }
+            if (hasPin) {
+                PrimaryButton("غیرفعال‌کردن قفل") {
+                    if (!lock.verify(currentPin)) {
+                        message = "برای غیرفعال‌کردن، PIN فعلی را وارد کن."
+                    } else {
+                        val cleared = runCatching {
+                            // clearPin خودش hash، salt، pattern و timeout را اتمیک از SharedPreferences حذف می‌کند.
+                            bio.clear()
+                            lock.clearPin()
+                            // این session همین‌جا unlocked می‌ماند؛ state قدیمیِ lifecycle نباید قفل را برگرداند.
+                            lock.markUnlocked()
+                        }.isSuccess
+                        if (cleared) {
+                            hasPin = false
+                            currentPin = ""
+                            pin = ""
+                            confirm = ""
+                            pattern = ""
+                            bioState = false
+                            message = "قفل برنامه غیرفعال شد."
+                        } else {
+                            message = "غیرفعال‌کردن قفل انجام نشد؛ دوباره تلاش کن."
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("الگوی اختصاصی قفل برنامه", style = MaterialTheme.typography.titleSmall)
+                    Text("این الگو متعلق به خود اپ است و هیچ ارتباطی با Pattern/PIN قفل صفحهٔ اندروید ندارد.", style = MaterialTheme.typography.bodySmall)
+                    Text(if (lock.hasPattern()) "الگو ثبت شده است." else "هنوز الگویی ثبت نشده.", color = MaterialTheme.colorScheme.primary)
+                    PatternLockGrid(
+                        pattern = pattern,
+                        onPatternChange = { pattern = it },
+                        enabled = true,
+                    )
+                    Text(
+                        if (pattern.isBlank()) "الگو را با کشیدن انگشت روی حداقل ۴ نقطه رسم کن."
+                        else "نقاط ثبت‌شده: " + pattern.replace(Regex("."), "•"),
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { pattern = "" }, modifier = Modifier.weight(1f)) { Text("پاک‌کردن") }
+                        PrimaryButton("ثبت الگو", Modifier.weight(2f)) {
+                            if (lock.validatePattern(pattern)) { lock.setPattern(pattern); pattern = ""; message = "الگوی اختصاصی ثبت شد." }
+                            else message = "حداقل ۴ نقطهٔ متفاوت انتخاب کن."
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Text("قفل خودکار بعد از", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "زمان فعلی: " + when (timeoutMs) {
+                    30_000L -> "۳۰ ثانیه"
+                    60_000L -> "۱ دقیقه"
+                    300_000L -> "۵ دقیقه"
+                    else -> toPersianDigits((timeoutMs / 1000).toString()) + " ثانیه"
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                InlineButton("۳۰ ثانیه", Modifier.weight(1f)) { timeoutMs = 30_000; lock.setAutoLockTimeout(timeoutMs) }
+                InlineButton("۱ دقیقه", Modifier.weight(1f)) { timeoutMs = 60_000; lock.setAutoLockTimeout(timeoutMs) }
+                InlineButton("۵ دقیقه", Modifier.weight(1f)) { timeoutMs = 300_000; lock.setAutoLockTimeout(timeoutMs) }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text("ورود با اثر انگشت / چهره", style = MaterialTheme.typography.titleSmall)
+            Text(bioStatus.fa, style = MaterialTheme.typography.bodySmall)
+            when {
+                !hasPin -> Text(
+                    "اول قفل را با PIN فعال کن؛ بیومتریک فقط همان قفل را سریع‌تر باز می‌کند.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                bioStatus == BiometricStatus.READY && activity != null -> {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Switch(
+                            checked = bioState,
+                            onCheckedChange = { want ->
+                                if (!want) {
+                                    bio.setEnabled(false, context)
+                                    bioState = false
+                                    message = "بیومتریک خاموش شد؛ فقط PIN کار می‌کند."
+                                } else {
+                                    // روشن‌کردن بدون تأیید هویت یعنی هرکس گوشی را برداشت
+                                    // می‌تواند قفل را دور بزند؛ پس یک بار پرامپت می‌گیریم.
+                                    BiometricPromptRunner.show(
+                                        activity = activity,
+                                        title = "فعال‌کردن ورود بیومتریک",
+                                        subtitle = "برای روشن‌کردن این گزینه یک بار هویتت را تأیید کن.",
+                                        negativeText = "بی‌خیال",
+                                        onSuccess = {
+                                            bioState = bio.setEnabled(true, context)
+                                            message = if (bioState) {
+                                                "روشن شد. از این بعد روی صفحه‌ی قفل دکمه‌ی بیومتریک داری."
+                                            } else {
+                                                "روشن نشد؛ اول PIN لازم است."
+                                            }
+                                        },
+                                        onError = { text -> message = text },
+                                    )
+                                }
+                            },
+                        )
+                        Text(
+                            if (bioState) "روشن است" else "خاموش است",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                    Text(
+                        "داده‌های بیومتریک در اپ ذخیره نمی‌شوند و به سرور نمی‌روند؛ فقط نتیجه‌ی «موفق/ناموفق» " +
+                            "از سیستم‌عامل گرفته می‌شود.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                else -> Text(
+                    "روی این دستگاه نمی‌توان بیومتریک را روشن کرد؛ همان PIN کار می‌کند.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            message?.let {
+                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
+@Composable
+fun RemindersScreen(onBack: () -> Unit) {
+    val container = LocalAppContainer.current
+    val context = LocalContext.current
+    val scheduler = container.reminders
+    val quiet = container.quiet
+    var reminders by remember { mutableStateOf(scheduler.all()) }
+    var meds by remember { mutableStateOf(MedsStore.load(LocalStore(context, "hamyar_health"))) }
+    var quietState by remember { mutableStateOf(quiet.state()) }
+    var policyGranted by remember { mutableStateOf(QuietHoursAutomation.hasPolicyAccess(context)) }
+    var title by remember { mutableStateOf("") }
+    var body by remember { mutableStateOf("") }
+    var hour by remember { mutableStateOf("18") }
+    var minute by remember { mutableStateOf("00") }
+    var message by remember { mutableStateOf<String?>(null) }
+    fun refresh() { reminders = scheduler.all(); meds = MedsStore.load(LocalStore(context, "hamyar_health")); policyGranted = QuietHoursAutomation.hasPolicyAccess(context); quietState = quiet.state() }
+    LifecycleResumeEffect(Unit) { refresh(); QuietHoursAutomation.syncNow(context); onPauseOrDispose { } }
+    fun openNotificationSettings() {
+        runCatching { context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply { putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName) }) }
+    }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        AppTopBar("یادآورها و اعلان‌ها", onBack)
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("مرکز اعلان‌ها", style = MaterialTheme.typography.titleMedium)
+                    Text("همهٔ زمان‌بندی‌های برنامه و یادآورهای دارو از همین‌جا دیده می‌شوند.", style = MaterialTheme.typography.bodySmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        PrimaryButton("تنظیمات اعلان اندروید", Modifier.weight(1f), onClick = ::openNotificationSettings)
+                        OutlinedButton(onClick = { scheduler.rescheduleAll(); MedsStore.scheduleAll(context); refresh() }, modifier = Modifier.weight(1f)) { Text("فعال‌سازی دوباره") }
+                    }
+                }
+            }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("ساعات سکوت", style = MaterialTheme.typography.titleSmall)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Switch(checked = quietState.enabled, onCheckedChange = { quiet.update(enabled = it); quietState = quiet.state(); QuietHoursAutomation.schedule(context); scheduler.rescheduleAll() })
+                        Text("${toPersianDigits("%02d:%02d".format(quietState.startHour, quietState.startMinute))} تا ${toPersianDigits("%02d:%02d".format(quietState.endHour, quietState.endMinute))}", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { runCatching { context.startActivity(QuietHoursAutomation.policySettingsIntent()) } }) { Text(if (policyGranted) "دسترسی فعال" else "دسترسی سیستم") }
+                    }
+                }
+            }
+            Text("همهٔ یادآورها", style = MaterialTheme.typography.titleMedium)
+            reminders.sortedWith(compareBy<Reminder> { it.hour }.thenBy { it.minute }).forEach { reminder ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(reminder.title, style = MaterialTheme.typography.titleSmall); Text(reminder.body, style = MaterialTheme.typography.bodySmall); Text(toPersianDigits("%02d:%02d".format(reminder.hour, reminder.minute)), color = MaterialTheme.colorScheme.primary) }
+                        Switch(checked = reminder.enabled, onCheckedChange = { scheduler.setEnabled(reminder.id, it); refresh() })
+                    }
+                }
+            }
+            Text("یادآورهای دارو", style = MaterialTheme.typography.titleMedium)
+            if (meds.isEmpty()) Text("دارویی برای یادآوری ثبت نشده.", style = MaterialTheme.typography.bodySmall)
+            meds.sortedWith(compareBy<com.hamyarehealth.ir.ui.hub.MedicationReminder> { it.hour }.thenBy { it.minute }).forEach { med ->
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(12.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text(med.name, style = MaterialTheme.typography.titleSmall); Text(listOf(med.dose, med.note).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall); Text(toPersianDigits("%02d:%02d".format(med.hour, med.minute)), color = MaterialTheme.colorScheme.primary) }
+                        Switch(checked = med.enabled, onCheckedChange = { next -> val store = LocalStore(context, "hamyar_health"); val nextList = meds.map { if (it.id == med.id) it.copy(enabled = next) else it }; MedsStore.save(store, nextList); MedsStore.scheduleAll(context); meds = nextList })
+                    }
+                }
+            }
+            Text("یادآور تازه", style = MaterialTheme.typography.titleMedium)
+            OutlinedTextField(title, { title = it }, label = { Text("عنوان") }, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(body, { body = it }, label = { Text("متن") }, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(hour, { hour = it.filter(Char::isDigit).take(2) }, label = { Text("ساعت") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                OutlinedTextField(minute, { minute = it.filter(Char::isDigit).take(2) }, label = { Text("دقیقه") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+            }
+            PrimaryButton("افزودن یادآور", Modifier.fillMaxWidth()) {
+                if (title.isBlank()) message = "عنوان خالی است." else {
+                    val h = hour.toIntOrNull()?.coerceIn(0,23) ?: 18; val m = minute.toIntOrNull()?.coerceIn(0,59) ?: 0
+                    scheduler.upsert(Reminder(UUID.randomUUID().toString(), title.trim(), body.trim().ifBlank { title.trim() }, h, m)); refresh(); title = ""; body = ""; message = "یادآور ثبت شد."
+                }
+            }
+            message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
+        }
+    }
+}
+@Composable
+fun SyncScreen(onBack: () -> Unit) {
+    val ctx = LocalContext.current
+    val container = LocalAppContainer.current
+    var status by remember { mutableStateOf(SyncCenter.status(ctx, container)) }
+    var limit by remember { mutableStateOf(SyncCenter.cacheLimitMb(ctx)) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    var askClear by remember { mutableStateOf(false) }
+
+    fun mb(bytes: Long): String =
+        toPersianDigits(String.format(Locale.US, "%.1f", bytes / 1048576.0))
+
+    fun refresh() {
+        status = SyncCenter.status(ctx, container)
+    }
+
+    // صفحهٔ سرور عمداً جمع‌تر و بدون فونت دست‌نویس است تا متن‌های فنی یکنواخت خوانده شوند.
+    val serverTypography = settingsTypography(
+        base = MaterialTheme.typography,
+        sizeDelta = -4f,
+        forceVazirmatnLight = true,
+    )
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme,
+        typography = serverTypography,
+    ) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            AppTopBar("تنظیمات سرور", onBack)
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+
+                ServerOptionsSection()
+
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("همگام‌سازی خودکار", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "داده‌های قابل همگام‌سازی ابتدا روی دستگاه ذخیره و هنگام اتصال ارسال می‌شوند.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("وضعیت اتصال", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "اتصال به سرور: " + when {
+                                !container.isBackendConfigured -> "پیکربندی نشده (حالت محلی)"
+                                status.online -> "آنلاین و آماده"
+                                else -> "آفلاین — داده‌ها در صف می‌مانند"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            "در صف ارسال: " + toPersianDigits(status.outbox.toString()) +
+                                "  •  پیام‌های در انتظار: " + toPersianDigits(status.heartPending.toString()),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            if (status.lastSyncAt > 0) {
+                                "آخرین همگام‌سازی: " + JalaliDate.stampFa(status.lastSyncAt)
+                            } else {
+                                "هنوز همگام‌سازی انجام نشده."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        status.lastError?.let {
+                            Text(
+                                "آخرین خطای سینک: $it",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                        }
+                    }
+                }
+
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text("کش دستگاه", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "حجمِ کش: " + mb(status.cacheBytes) + " مگابایت از " +
+                                toPersianDigits(status.limitMb.toString()) + " مگابایت",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            "موارد کش‌شده: " + toPersianDigits(status.cacheItems.toString()) +
+                                "  •  رسانه‌ها: " + toPersianDigits(status.mediaFiles.toString()) +
+                                " فایل، " + mb(status.mediaBytes) + " مگابایت",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Text(
+                            "داده‌های محلی همگام‌سازی‌شده: " +
+                                toPersianDigits(status.stateRows.toString()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            "سقفِ کش: " + toPersianDigits(limit.toString()) + " مگابایت",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Slider(
+                            value = limit.toFloat(),
+                            onValueChange = { limit = it.toInt() },
+                            valueRange = SyncCenter.MIN_LIMIT_MB.toFloat()..SyncCenter.MAX_LIMIT_MB.toFloat(),
+                        )
+                        Text(
+                            "با عبور از سقف، قدیمی‌ترین رسانه‌ها پاک و در صورت نیاز دوباره دریافت می‌شوند.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            PrimaryButton("اعمالِ سقف") {
+                                SyncCenter.setCacheLimitMb(ctx, limit)
+                                refresh()
+                                notice = "سقفِ کش روی " + toPersianDigits(limit.toString()) + " مگابایت تنظیم شد."
+                            }
+                            TextButton(onClick = { askClear = true }) { Text("پاک‌کردنِ کشِ رسانه") }
+                        }
+                        notice?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+
+                Text(
+                    "چیزی که هرگز همگام نمی‌شود: ${PrivacyPolicy.neverSyncTables.joinToString("، ")}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (!container.isBackendConfigured) {
+                    Card(Modifier.fillMaxWidth()) {
+                        Text(
+                            "همگام‌سازی ابری در این نسخه پیکربندی نشده است.",
+                            Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (askClear) {
+            AlertDialog(
+                onDismissRequest = { askClear = false },
+                title = { Text("پاک‌کردنِ کشِ رسانه؟") },
+                text = {
+                    Text(
+                        "فایل‌های صوتی/ویدیویی که دانلود کرده‌ای پاک می‌شوند (برنامه، تیک‌ها و " +
+                            "نکته‌ها دست‌نخورده می‌مانند). هر فایلی لازم شود، دوباره از سرور می‌آید.",
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        SyncCenter.clearMediaCache(ctx)
+                        askClear = false
+                        refresh()
+                        notice = "کشِ رسانه پاک شد."
+                    }) { Text("پاک کن") }
+                },
+                dismissButton = { TextButton(onClick = { askClear = false }) { Text("بی‌خیال") } },
+            )
+        }
+    }
+}

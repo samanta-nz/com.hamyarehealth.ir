@@ -1,0 +1,348 @@
+package com.hamyarehealth.ir.ui.hub
+
+import android.graphics.BitmapFactory
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.Image
+import androidx.navigation.NavController
+import com.hamyarehealth.ir.ui.AppTypography
+import com.hamyarehealth.ir.ui.appearance.FontCatalog
+
+/** سربرگ مشترک صفحات هاب با دکمه‌ی بازگشت. */
+@Composable
+fun HubHeader(title: String, subtitle: String, onBack: (() -> Unit)? = null, slotId: String = FontCatalog.ROLE_HEADING) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        if (onBack != null) {
+            IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "بازگشت") }
+        }
+        Column {
+            Text(title, style = MaterialTheme.typography.headlineMedium, fontFamily = AppTypography.title.family, fontWeight = AppTypography.title.weight, fontSize = AppTypography.title.size)
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = AppTypography.titleSub.family, fontWeight = AppTypography.titleSub.weight, fontSize = AppTypography.titleSub.size)
+        }
+    }
+}
+
+/** آیتم منوی هاب — کارت قابل‌کلیک با ایموجی و توضیح. */
+@Composable
+fun HubCard(
+    emoji: String,
+    title: String,
+    subtitle: String,
+    modifier: Modifier = Modifier,
+    slotId: String = FontCatalog.ROLE_TILE,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(16.dp)
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .shadow(7.dp, shape)
+            .clip(shape)
+            .background(
+                androidx.compose.ui.graphics.Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .82f),
+                    ),
+                ),
+            )
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f), shape)
+            .clickable(
+                role = Role.Button,
+                onClick = onClick,
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(46.dp)
+                    .shadow(3.dp, CircleShape)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(emoji, style = MaterialTheme.typography.titleLarge)
+            }
+            Spacer(Modifier.width(11.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                AutoShrinkTileText(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontFamily = AppTypography.cardTitle.family,
+                        fontWeight = AppTypography.cardTitle.weight,
+                        fontSize = AppTypography.cardTitle.size,
+                    ),
+                    maxLines = 1,
+                )
+                AutoShrinkTileText(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = AppTypography.cardSub.family,
+                        fontWeight = AppTypography.cardSub.weight,
+                        fontSize = AppTypography.cardSub.size,
+                    ),
+                    maxLines = 2,
+                )
+            }
+            Icon(
+                Icons.Outlined.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary.copy(alpha = .48f),
+                modifier = Modifier.size(16.dp),
+            )
+        }
+    }
+}
+
+/** بدنه‌ی اسکرول‌شونده‌ی استاندارد هاب‌ها. */
+@Composable
+fun HubBody(content: @Composable () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) { content() }
+}
+
+/** ناوبری استاندارد به یک مسیر از داخل هاب. */
+fun NavController.hubTo(route: String) {
+    navigate(route) { launchSingleTop = true }
+}
+
+/** رفتن به لایه‌ی بعدی منو — برگشت، منوی پدر همان بخش است نه ریشه‌ی اپ. */
+fun NavController.layerTo(route: String) {
+    navigate(route)
+}
+
+/** کاشی جلد مربعی — الگوی کتاب‌های مدرسه: ۲ تا در هر ردیف، ۱×۱، عنوان + زیرعنوان. */
+data class HubCoverTile(
+    val id: String,
+    val title: String,
+    val subtitle: String,
+    val onClick: () -> Unit,
+    /** نسبت عرض به ارتفاعِ خود تصویر؛ کاورهای عادی مربع و حرکت‌ها افقی‌اند. */
+    val imageAspectRatio: Float = 1f,
+)
+
+@Composable
+fun HubCoverGrid(tiles: List<HubCoverTile>, slotId: String = "hub.practice.item") {
+    // سه ستون به‌جای دو ستون: عرض هر کاشی حدود ۳۰٪ کوچک‌تر می‌شود.
+    Column(verticalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+        tiles.chunked(3).forEach { rowTiles ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                rowTiles.forEach { tile ->
+                    HubCoverCard(tile, Modifier.weight(1f), slotId)
+                }
+                repeat(3 - rowTiles.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HubCoverCard(tile: HubCoverTile, modifier: Modifier, slotId: String) {
+    val ctx = LocalContext.current
+    val cover = remember(tile.id) { loadPracticeCover(ctx, tile.id) }
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier
+            .shadow(8.dp, shape)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f), shape)
+            .clickable(role = Role.Button, onClick = tile.onClick),
+    ) {
+        if (cover != null) {
+            Image(
+                bitmap = cover,
+                contentDescription = tile.title,
+                modifier = Modifier.fillMaxWidth().aspectRatio(tile.imageAspectRatio),
+                contentScale = ContentScale.Fit,
+            )
+        } else {
+            Box(
+                Modifier.fillMaxWidth().aspectRatio(tile.imageAspectRatio),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    Modifier.size(58.dp).background(
+                        MaterialTheme.colorScheme.primaryContainer,
+                        CircleShape,
+                    ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Outlined.AutoAwesome,
+                        contentDescription = tile.title,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(30.dp),
+                    )
+                }
+            }
+        }
+        Column(
+            Modifier.fillMaxWidth().height(64.dp).padding(horizontal = 7.dp, vertical = 5.dp),
+            verticalArrangement = Arrangement.spacedBy(1.dp),
+        ) {
+            AutoShrinkTileText(
+                text = tile.title,
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontFamily = AppTypography.cardTitle.family,
+                    fontWeight = AppTypography.cardTitle.weight,
+                    fontSize = AppTypography.cardTitle.size,
+                ),
+                maxLines = 1,
+            )
+            if (tile.subtitle.isNotBlank()) {
+                AutoShrinkTileText(
+                    text = tile.subtitle,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontFamily = AppTypography.cardSub.family,
+                        fontWeight = AppTypography.cardSub.weight,
+                        fontSize = AppTypography.cardSub.size,
+                    ),
+                    maxLines = 2,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AutoShrinkTileText(
+    text: String,
+    style: TextStyle,
+    maxLines: Int,
+) {
+    var size by remember(text, style.fontSize, maxLines) { mutableStateOf(style.fontSize) }
+    Text(
+        text = text,
+        style = style.copy(fontSize = size),
+        maxLines = maxLines,
+        overflow = TextOverflow.Clip,
+        onTextLayout = { result ->
+            if ((result.didOverflowWidth || result.didOverflowHeight) && size.value > 8f) {
+                size = (size.value * 0.9f).coerceAtLeast(8f).sp
+            }
+        },
+    )
+}
+
+internal fun loadPracticeCover(ctx: android.content.Context, id: String) = runCatching {
+    ctx.assets.open("practice-covers/$id.jpg").use { BitmapFactory.decodeStream(it) }?.asImageBitmap()
+}.getOrNull()
+
+/** گروه تاشوی منوی هاب — دسته‌بندی در تو در تو (مشترک بین مدرسه/آموزشگاه/سلامتی). */
+@Composable
+fun HubMenuGroup(
+    title: String,
+    subtitle: String,
+    open: Boolean? = null,
+    onToggle: (() -> Unit)? = null,
+    slotId: String = FontCatalog.ROLE_HEADING,
+    content: @Composable () -> Unit,
+) {
+    var selfOpen by rememberSaveable { mutableStateOf(false) }
+    val isOpen = open ?: selfOpen
+    val shape = RoundedCornerShape(16.dp)
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .shadow(5.dp, shape)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = .45f), shape)
+            .clickable(
+                role = Role.Button,
+                onClick = { if (onToggle != null) onToggle() else selfOpen = !selfOpen },
+            )
+            .padding(12.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontFamily = AppTypography.accordionTitle.family,
+                    fontWeight = AppTypography.accordionTitle.weight,
+                    fontSize = AppTypography.accordionTitle.size,
+                )
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontFamily = AppTypography.accordionSub.family,
+                    fontWeight = AppTypography.accordionSub.weight,
+                    fontSize = AppTypography.accordionSub.size,
+                )
+            }
+            Icon(
+                if (isOpen) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (isOpen) "بستن" else "بازکردن",
+            )
+        }
+        AnimatedVisibility(visible = isOpen) {
+            Column(
+                Modifier.padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) { content() }
+        }
+    }
+}
+

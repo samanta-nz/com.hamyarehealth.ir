@@ -1,0 +1,262 @@
+package com.hamyarehealth.ir.ui.profile
+
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.dp
+import com.hamyarehealth.ir.BuildConfig
+import com.hamyarehealth.ir.platform.core.common.JalaliDate
+import com.hamyarehealth.ir.platform.core.common.toPersianDigits
+import com.hamyarehealth.ir.platform.core.designsystem.AppTopBar
+
+/** فقط ارقام لاتین — کیبورد فارسی هم ممکن است ۰-۹ بدهد؛ همه را لاتین می‌کنیم. */
+private fun latinDigits(s: String): String = buildString {
+    for (c in s) append(
+        when (c) {
+            '۰' -> '0'; '۱' -> '1'; '۲' -> '2'; '۳' -> '3'; '۴' -> '4'
+            '۵' -> '5'; '۶' -> '6'; '۷' -> '7'; '۸' -> '8'; '۹' -> '9'
+            else -> c
+        },
+    )
+}
+
+/**
+ * فرمِ ثبت‌نامِ «همیار سلامتی من» — بلافاصله پس از اولین ورود موفق اگر پروفایل نباشد.
+ * قواعد اجباری: نام و نام‌خانوادگی، تاریخ تولد شمسی (سن خودکار)، جنسیت، موبایل.
+ * استان→شهر اختیاری با پیش‌فرض خالی.
+ *
+ * منطقِ ثبت‌نام همان منطقِ همیار سلامتی من است (همان جدول `student_profiles`، همان حسابِ
+ * Appwrite و همان قواعد اعتبارسنجی)؛ فقط عنوان و فیلدِ نمایشیِ «اپ» عوض شده تا
+ * روشن باشد این حساب از کدام اپ ساخته می‌شود.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StudentProfileScreen(
+    email: String,
+    saving: Boolean,
+    error: String?,
+    /** فقط پس از ورود Google: امکان ساخت رمز برای همان ایمیل، کاملاً اختیاری. */
+    offerEmailPassword: Boolean = false,
+    onSubmit: (
+        firstName: String, lastName: String, age: Int, birthDate: String, grade: GradeLevel, phone: String,
+        gender: String, province: String, county: String, city: String,
+        password: String,
+    ) -> Unit,
+) {
+    var firstName by remember { mutableStateOf("") }
+    var lastName by remember { mutableStateOf("") }
+    var birthYear by remember { mutableStateOf<Int?>(null) }
+    var birthMonth by remember { mutableStateOf<Int?>(null) }
+    var birthDay by remember { mutableStateOf<Int?>(null) }
+    val birthJalali = remember(birthYear, birthMonth, birthDay) {
+        val y = birthYear; val m = birthMonth; val d = birthDay
+        if (y != null && m != null && d != null) JalaliDate.Jalali(y, m, d).takeIf { JalaliDate.isValid(it) } else null
+    }
+    val computedAge = remember(birthJalali) { birthJalali?.let { JalaliDate.ageYears(it) } }
+    val grade = AppEdition.grade
+    var phone by remember { mutableStateOf("") }
+    // حساب ایمیلی همین حالا رمز دارد و دوباره از کاربر چیزی نمی‌گیریم. برای ورود
+    // Google فقط یک رمز اختیاری روی همان ایمیل پیشنهاد می‌شود؛ نام کاربری دخیل نیست.
+    var accountPassword by remember { mutableStateOf("") }
+    var gender by remember { mutableStateOf("") }
+    var province by remember { mutableStateOf("") }
+    var county by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf("") }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val firstNameBad = showErrors && firstName.trim().length < 2
+    val lastNameBad = showErrors && lastName.trim().length < 2
+    val ageBad = showErrors && (computedAge == null || computedAge !in 5..60)
+    val phoneBad = showErrors && !Regex("^9\\d{9}$").matches(phone)
+    val passwordBad = showErrors && offerEmailPassword &&
+        accountPassword.isNotEmpty() && accountPassword.length < 8
+
+    Column(Modifier.fillMaxSize()) {
+        AppTopBar("ثبت‌نام همیار سلامتی من", onBack = {})
+
+        Column(
+            Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                "خوش آمدی! برای اینکه تمرین‌ها، پیگیری خواب و آرامشِ روزهایت روی همین حساب " +
+                    "ذخیره شود، این فرم را یک‌بار کامل کن.",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = {},
+                label = { Text("ایمیل حساب") },
+                readOnly = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (offerEmailPassword) {
+                CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                    OutlinedTextField(
+                        value = accountPassword,
+                        onValueChange = { accountPassword = it },
+                        label = { Text("رمز جدید برای همین ایمیل (اختیاری)") },
+                        isError = passwordBad,
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        supportingText = {
+                            Text(
+                                if (passwordBad) "رمز باید حداقل ۸ کاراکتر باشد"
+                                else "اگر وارد کنی، دفعهٔ بعد با همین ایمیل و رمز هم می‌توانی وارد شوی",
+                            )
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = firstName,
+                onValueChange = { firstName = it },
+                label = { Text("نام *") },
+                isError = firstNameBad,
+                supportingText = { if (firstNameBad) Text("نام را فارسی و کامل بنویس") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = lastName,
+                onValueChange = { lastName = it },
+                label = { Text("نام خانوادگی *") },
+                isError = lastNameBad,
+                supportingText = { if (lastNameBad) Text("نام خانوادگی را کامل بنویس") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            JalaliBirthDateFields(
+                year = birthYear,
+                month = birthMonth,
+                day = birthDay,
+                onChange = { y, m, d -> birthYear = y; birthMonth = m; birthDay = d },
+                isError = ageBad,
+            )
+            OutlinedTextField(
+                value = computedAge?.let { toPersianDigits(it.toString()) }.orEmpty(),
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("سن") },
+                isError = ageBad,
+                supportingText = {
+                    Text(if (ageBad) "سن باید بین ۵ تا ۶۰ باشد" else "از تاریخ تولد شمسی حساب می‌شود")
+                },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            Text("جنسیت *", style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                StudentGender.entries.forEach { g ->
+                    FilterChip(
+                        selected = gender == g.id,
+                        onClick = { gender = g.id },
+                        label = { Text(g.fa) },
+                    )
+                }
+            }
+            if (showErrors && gender.isBlank()) {
+                Text("پسر یا دختر را انتخاب کن", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+
+            OutlinedTextField(
+                value = BuildConfig.APP_TITLE,
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("اپ") },
+                supportingText = { Text("این حساب برای «همیار سلامتی من» ساخته می‌شود.") },
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = latinDigits(it).filter { c -> c.isDigit() }.take(10) },
+                    label = { Text("شماره همراه *") },
+                    isError = phoneBad,
+                    supportingText = {
+                        Text(if (phoneBad) "دقیقاً ۱۰ رقم — با ۹ شروع شود" else "۱۰ رقم؛ ۹۸ به‌صورت خودکار اولش هست")
+                    },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    prefix = { Text("+98", fontWeight = FontWeight.Bold) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+
+            IranLocationFields(
+                province = province,
+                county = county,
+                city = city,
+                onProvince = { province = it },
+                onCounty = { county = it },
+                onCity = { city = it },
+            )
+
+            if (!error.isNullOrBlank()) {
+                Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            }
+
+            Button(
+                onClick = {
+                    showErrors = true
+                    val age = computedAge
+                    val ok = firstName.trim().length >= 2 && lastName.trim().length >= 2 &&
+                        age != null && age in 5..60 && birthJalali != null &&
+                        Regex("^9\\d{9}$").matches(phone) && gender.isNotBlank() &&
+                        (!offerEmailPassword || accountPassword.isEmpty() || accountPassword.length >= 8)
+                    if (ok && !saving && age != null && birthJalali != null) {
+                        onSubmit(
+                            firstName.trim(), lastName.trim(), age, birthJalali.isoLike, grade, phone,
+                            gender, province, county, city,
+                            accountPassword,
+                        )
+                    }
+                },
+                enabled = !saving,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+            ) {
+                if (saving) CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
+                else Text("ثبت و ورود به همیار سلامتی من", fontWeight = FontWeight.Bold)
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+    }

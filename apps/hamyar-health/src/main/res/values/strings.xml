@@ -1,0 +1,4 @@
+<resources>
+    <!-- نام نمایشی «همیار سلامتی من» — همان مقدار resValue در build.gradle.kts. -->
+    <string name="app_name">همیار سلامتی من</string>
+</resources>
