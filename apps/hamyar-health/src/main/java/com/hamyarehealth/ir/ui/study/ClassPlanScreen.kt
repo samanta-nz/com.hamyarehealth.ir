@@ -100,22 +100,34 @@ private fun DerivedAlarmTime(
     }
 }
 @Composable
-fun ClassPlanScreen(onBack: () -> Unit, initialTab: Int = 0, onVirtualHours: (() -> Unit)? = null, onHelp: () -> Unit = {}) {
-    var tab by remember { mutableIntStateOf(initialTab.coerceIn(0, 2)) }
+fun ClassPlanScreen(
+    onBack: () -> Unit,
+    initialTab: Int = 0,
+    onVirtualHours: (() -> Unit)? = null,
+    onHelp: () -> Unit = {},
+    // در «همیار سلامتی من» فقط تقویم لازم است؛ تب‌های مدرسه پنهان می‌شوند.
+    // پیش‌فرض همان رفتار قبلی است تا هیچ مسیرِ دیگری عوض نشود.
+    calendarOnly: Boolean = false,
+) {
+    val tabs = if (calendarOnly) listOf("تقویم") else listOf("هفتگی", "تقویم", "شیفت مدرسه")
+    val start = if (calendarOnly) 1 else initialTab
+    var tab by remember { mutableIntStateOf(start.coerceIn(0, tabs.lastIndex)) }
     Column(Modifier.fillMaxSize()) {
-        AppTopBar("برنامه کلاسی مدرسه", onBack, onHelp = onHelp)
-        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-            listOf("هفتگی", "تقویم", "شیفت مدرسه").forEachIndexed { i, label ->
-                Tab(selected = tab == i, onClick = { tab = i }, text = {
-                    Text(
-                        label,
-                        fontWeight = FontWeight.Bold)
-                })
+        AppTopBar(if (calendarOnly) "تقویم شمسی" else "برنامه کلاسی مدرسه", onBack, onHelp = onHelp)
+        if (tabs.size > 1) {
+            ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
+                tabs.forEachIndexed { i, label ->
+                    Tab(selected = tab == i, onClick = { tab = i }, text = {
+                        Text(
+                            label,
+                            fontWeight = FontWeight.Bold)
+                    })
+                }
             }
         }
-        when (tab) {
-            0 -> WeeklyTimetableSection()
-            1 -> ShamsiCalendarSection()
+        when (tabs[tab]) {
+            "هفتگی" -> WeeklyTimetableSection()
+            "تقویم" -> ShamsiCalendarSection()
             else -> ShiftSection(onVirtualHours = onVirtualHours)
         }
     }

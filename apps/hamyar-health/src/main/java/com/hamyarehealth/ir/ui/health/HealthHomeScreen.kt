@@ -47,11 +47,12 @@ import java.time.format.DateTimeFormatter
  *
  * چیدمان از بالا به پایین:
  * ۱) سربرگِ گرادیانی با تاریخ شمسی و ساعتِ تهران
- * ۲) «حال امروز» (آب/ورزش/روتین) با دکمه‌های سریع
- * ۳) ردیاب سریعِ آب
- * ۴) اقدام‌های سریعِ آرامش (تنفس، ذهن‌آگاهی، کسب آرامش، بین دروس)
- * ۵) کارت‌های سلامتی (همان کارت‌های همیار سلامتی من)
- * ۶) جملهٔ امروز
+ * ۲) تاریخ شمسی/میلادی، ساعتِ ۱۲ساعته، ساعتِ آنالوگِ روی آواتار و خطِ مناسبت‌ها
+ * ۳) «حال امروز» (آب/ورزش/روتین) با دکمه‌های سریع
+ * ۴) ردیاب سریعِ آب
+ * ۵) اقدام‌های سریعِ آرامش (تنفس، ذهن‌آگاهی، کسب آرامش، بین دروس)
+ * ۶) کارت‌های سلامتی (همان کارت‌های همیار سلامتی من)
+ * ۷) جملهٔ امروز
  *
  * هیچ بخشی از منطقِ محتوا تغییر نکرده: همان باکت ParsPack و همان گزارش‌های روزانه.
  */
@@ -84,7 +85,10 @@ fun HealthHomeScreen(nav: NavController) {
             badge = TehranClock(),
         )
 
-        // ۲) حال امروز
+        // ۲) تاریخ و ساعتِ زنده + ساعتِ آنالوگِ آواتار (کپی از داشبورد اپ قبلی)
+        DashboardTodayCard(nav)
+
+        // ۳) حال امروز
         TodayHealthCard(
             snapshot = snapshot,
             onWaterDelta = { delta ->
@@ -104,10 +108,10 @@ fun HealthHomeScreen(nav: NavController) {
             },
         )
 
-        // ۳) ردیاب سریعِ آب — همان کارتِ داشبوردِ قبلی (لمس = یک لیوان)
+        // ۴) ردیاب سریعِ آب — همان کارتِ داشبوردِ قبلی (لمس = یک لیوان)
         com.hamyarehealth.ir.ui.home.WaterQuickCard(onOpen = { nav.hubTo(Screen.Water.route) })
 
-        // ۴) اقدام‌های سریعِ آرامش و ذهن
+        // ۵) اقدام‌های سریعِ آرامش و ذهن
         HealthSectionTitle("اقدام سریع", "⚡")
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             HealthQuickAction("🌬️", "تمرین تنفسی", Modifier.weight(1f)) {
@@ -134,11 +138,11 @@ fun HealthHomeScreen(nav: NavController) {
             }
         }
 
-        // ۵) کارت‌های سلامتی
+        // ۶) کارت‌های سلامتی
         HealthSectionTitle("سلامتی من", "💚")
         HubCoverGrid(healthTiles(nav, includePeriod = girl))
 
-        // ۶) جملهٔ امروز
+        // ۷) جملهٔ امروز
         WisdomOfToday()
 
         Spacer(Modifier.height(6.dp))

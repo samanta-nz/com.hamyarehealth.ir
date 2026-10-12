@@ -34,8 +34,8 @@ android {
         minSdk = 29
         targetSdk = 36
         // نسخهٔ مستقل این اپ (کانال انتشارِ خودش).
-        versionCode = (findProperty("healthVersionCode") as? String)?.toIntOrNull() ?: 1
-        versionName = (findProperty("healthVersionName") as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: "1.0.0"
+        versionCode = (findProperty("healthVersionCode") as? String)?.toIntOrNull() ?: 2
+        versionName = (findProperty("healthVersionName") as? String)?.trim()?.takeIf { it.isNotEmpty() } ?: "1.0.1"
         ndk {
             // فقط معماری‌های واقعیِ گوشی (هم‌قرارداد با همیار من).
             abiFilters += listOf("arm64-v8a", "armeabi-v7a")

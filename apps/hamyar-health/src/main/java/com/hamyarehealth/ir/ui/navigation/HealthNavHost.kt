@@ -62,6 +62,7 @@ import com.hamyarehealth.ir.ui.safespace.SafeContentGuard
 import com.hamyarehealth.ir.ui.safespace.SafeFreeWritingScreen
 import com.hamyarehealth.ir.ui.safespace.SafeSpaceScreen
 import com.hamyarehealth.ir.ui.safespace.WritingPromptScreen
+import com.hamyarehealth.ir.ui.study.ClassPlanScreen
 import com.hamyarehealth.ir.ui.study.HealthProgressScreen
 import com.hamyarehealth.ir.ui.study.SecureMediaGalleryScreen
 import com.hamyarehealth.ir.ui.study.SleepBreathScreen
@@ -181,6 +182,13 @@ fun HealthNavHost() {
 
             // --- سلامتی ---
             composable(Screen.HealthProgress.route) { HealthProgressScreen(onBack = { nav.popBackStack() }) }
+            // تقویمِ شمسی/قمری/میلادی — همان صفحهٔ «تقویم» اپ قبلی، بدون تب‌های مدرسه.
+            composable(Screen.ClassPlanCalendar.route) {
+                ClassPlanScreen(
+                    onBack = { nav.popBackStack() },
+                    calendarOnly = true,
+                )
+            }
             composable(Screen.Water.route) { WaterScreen() }
             composable(Screen.Routine.route) { RoutineScreen { nav.popBackStack() } }
             composable(Screen.Meds.route) { MedsScreen { nav.popBackStack() } }
