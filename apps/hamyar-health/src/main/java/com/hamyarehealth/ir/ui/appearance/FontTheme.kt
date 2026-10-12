@@ -49,7 +49,7 @@ data class FontTheme(
     }
 
     fun toJson(): JSONObject = JSONObject()
-        .put("app", "hamyar")
+        .put("app", "health")
         .put("package", "com.hamyarehealth.ir")
         .put("lab", "appearance")
         .put("versionName", BuildConfig.VERSION_NAME)

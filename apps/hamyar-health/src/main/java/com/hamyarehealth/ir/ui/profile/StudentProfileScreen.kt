@@ -260,3 +260,4 @@ fun StudentProfileScreen(
             Spacer(Modifier.height(12.dp))
         }
     }
+}

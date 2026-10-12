@@ -161,12 +161,14 @@ jobs:
 
           AAPT="$ANDROID_HOME/build-tools/36.0.0/aapt"
           APKSIGNER="$ANDROID_HOME/build-tools/36.0.0/apksigner"
-          BADGING="$("$AAPT" dump badging "$APK" | head -1)"
+          BADGING_FULL="$("$AAPT" dump badging "$APK")"
+          BADGING="$(head -1 <<<"$BADGING_FULL")"
           echo "$BADGING"
+          grep -F "application-label:" <<<"$BADGING_FULL"
           grep -F "name='$PACKAGE'" <<<"$BADGING"
           grep -F "versionCode='$VERSION_CODE'" <<<"$BADGING"
           grep -F "versionName='$VERSION_NAME'" <<<"$BADGING"
-          grep -F "application-label:'همیار سلامتی من'" <<<"$BADGING"
+          grep -F "application-label:'همیار سلامتی من'" <<<"$BADGING_FULL"
 
           SIGNER="$("$APKSIGNER" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate SHA-256 digest: //p' | head -1 | tr -d ': ' | tr 'A-F' 'a-f')"
           EXPECTED="$(tr -d '[:space:]' < config/release-signing-sha256.txt | tr -d ':-' | tr 'A-F' 'a-f')"

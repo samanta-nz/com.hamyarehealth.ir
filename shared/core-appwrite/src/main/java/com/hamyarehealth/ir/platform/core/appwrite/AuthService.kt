@@ -630,7 +630,8 @@ class AppwriteAuthService(
         val svc = functions ?: return AppResult.Ok(Unit)
         val ctx = gateContext() ?: return AppResult.Ok(Unit)
         val body = JSONObject()
-            .put("app", "zahra")
+            // شناسهٔ اپ مبدأ: این نشست از «همیار سلامتی من» (health) آمده است، نه «همیار من».
+            .put("app", "health")
             .put("grade", ctx.gradeId)
             .put("deviceId", ctx.deviceId)
             .put("deviceLabel", ctx.deviceLabel)
